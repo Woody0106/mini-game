@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Heart Particles</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a0a2e 0%, #0d0518 50%, #1a0a2e 100%);
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .poem {
+            position: fixed;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 10;
+            width: 90%;
+            max-width: 600px;
+        }
+
+        .poem-line {
+            font-family: 'UnifrakturMaguntia', 'Cinzel', cursive;
+            font-size: 22px;
+            color: transparent;
+            background: linear-gradient(
+                180deg,
+                #ffffff 0%,
+                #e8e8e8 20%,
+                #c0c0c0 40%,
+                #a0a0a0 50%,
+                #c0c0c0 60%,
+                #e8e8e8 80%,
+                #ffffff 100%
+            );
+            -webkit-background-clip: text;
+            background-clip: text;
+            text-shadow:
+                0 0 10px rgba(192, 192, 192, 0.8),
+                0 0 20px rgba(192, 192, 192, 0.5),
+                0 0 30px rgba(147, 112, 219, 0.3),
+                2px 2px 4px rgba(0, 0, 0, 0.5);
+            letter-spacing: 3px;
+            line-height: 1.8;
+            animation: shimmer 3s ease-in-out infinite;
+            display: block;
+            margin: 8px 0;
+        }
+
+        @keyframes shimmer {
+            0%, 100% {
+                filter: brightness(1) drop-shadow(0 0 5px rgba(192, 192, 192, 0.5));
+            }
+            50% {
+                filter: brightness(1.3) drop-shadow(0 0 15px rgba(192, 192, 192, 0.8));
+            }
+        }
+
+        .glow-effect {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            height: 100px;
+            background: radial-gradient(ellipse at center, rgba(147, 112, 219, 0.2) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 5;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div class="glow-effect"></div>
+    <div class="poem">
+        <span class="poem-line">时光碎片缓缓散落</span>
+        <span class="poem-line">麦恩莉与麻薯藏着不期而遇的甜</span>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let particles = [];
+        const particleCount = 800;
+        let rotationY = 0;
+        let rotationX = 0.2;
+
+        // 心形3D参数
+        const heartScale = 120;
+        const depth = 200;
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        // 心形数学函数
+        function heartFunction(t) {
+            // 心形曲线公式
+            const x = 16 * Math.pow(Math.sin(t), 3);
+            const y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
+            return { x, y };
+        }
+
+        // 创建粒子
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                // 在心形表面随机分布
+                const t = Math.random() * Math.PI * 2;
+                const heart = heartFunction(t);
+
+                // 添加随机厚度（让心形有体积感）
+                const thickness = (Math.random() - 0.5) * 40;
+
+                this.baseX = heart.x * heartScale / 16;
+                this.baseY = heart.y * heartScale / 16;
+                this.baseZ = thickness;
+
+                // 添加随机偏移，让粒子更细碎
+                this.offsetX = (Math.random() - 0.5) * 30;
+                this.offsetY = (Math.random() - 0.5) * 30;
+                this.offsetZ = (Math.random() - 0.5) * 30;
+
+                // 随机运动参数
+                this.vx = (Math.random() - 0.5) * 0.3;
+                this.vy = (Math.random() - 0.5) * 0.3;
+                this.vz = (Math.random() - 0.5) * 0.3;
+
+                // 粒子属性
+                this.size = 1 + Math.random() * 3;
+                this.baseSize = this.size;
+                this.alpha = 0.3 + Math.random() * 0.7;
+
+                // 紫色系颜色
+                const purpleHue = 260 + Math.random() * 60; // 260-320 (紫色到粉紫色)
+                const saturation = 60 + Math.random() * 40;
+                const lightness = 50 + Math.random() * 30;
+                this.color = `hsla(${purpleHue}, ${saturation}%, ${lightness}%, ${this.alpha})`;
+                this.hue = purpleHue;
+            }
+
+            update() {
+                // 添加随机运动
+                this.offsetX += this.vx;
+                this.offsetY += this.vy;
+                this.offsetZ += this.vz;
+
+                // 限制偏移范围
+                const maxOffset = 50;
+                if (Math.abs(this.offsetX) > maxOffset) this.vx *= -1;
+                if (Math.abs(this.offsetY) > maxOffset) this.vy *= -1;
+                if (Math.abs(this.offsetZ) > maxOffset) this.vz *= -1;
+
+                // 大小脉动效果
+                this.size = this.baseSize + Math.sin(Date.now() * 0.003 + this.baseX) * 0.5;
+            }
+
+            getRotatedPosition(rotY, rotX) {
+                let x = this.baseX + this.offsetX;
+                let y = this.baseY + this.offsetY;
+                let z = this.baseZ + this.offsetZ;
+
+                // Y轴旋转
+                const cosY = Math.cos(rotY);
+                const sinY = Math.sin(rotY);
+                const x1 = x * cosY - z * sinY;
+                const z1 = x * sinY + z * cosY;
+
+                // X轴旋转
+                const cosX = Math.cos(rotX);
+                const sinX = Math.sin(rotX);
+                const y2 = y * cosX - z1 * sinX;
+                const z2 = y * sinX + z1 * cosX;
+
+                return {
+                    x: x1,
+                    y: y2,
+                    z: z2
+                };
+            }
+
+            draw(ctx, centerX, centerY) {
+                const pos = this.getRotatedPosition(rotationY, rotationX);
+
+                // 透视投影
+                const perspective = depth / (depth + pos.z);
+                const screenX = centerX + pos.x * perspective;
+                const screenY = centerY + pos.y * perspective;
+
+                // 根据深度调整透明度和大小
+                const depthAlpha = Math.max(0.1, (pos.z + 100) / 200 * this.alpha);
+                const depthSize = this.size * perspective;
+
+                // 绘制粒子
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, depthSize, 0, Math.PI * 2);
+
+                // 根据z深度调整颜色亮度
+                const lightness = 50 + (pos.z / 100) * 20;
+                ctx.fillStyle = `hsla(${this.hue}, 80%, ${lightness}%, ${depthAlpha})`;
+                ctx.fill();
+
+                // 发光效果
+                if (this.size > 2 && depthAlpha > 0.5) {
+                    ctx.beginPath();
+                    ctx.arc(screenX, screenY, depthSize * 2, 0, Math.PI * 2);
+                    ctx.fillStyle = `hsla(${this.hue}, 80%, ${lightness}%, ${depthAlpha * 0.3})`;
+                    ctx.fill();
+                }
+            }
+        }
+
+        // 初始化粒子
+        for (let i = 0; i < particleCount; i++) {
+            particles.push(new Particle());
+        }
+
+        // 动画循环
+        function animate() {
+            ctx.fillStyle = 'rgba(13, 5, 24, 0.15)';
+            ctx.fillRect(0, 0, width, height);
+
+            // 旋转速度
+            rotationY += 0.008;
+            rotationX = 0.2 + Math.sin(Date.now() * 0.001) * 0.1;
+
+            const centerX = width / 2;
+            const centerY = height / 2 - 50;
+
+            // 按z坐标排序（画家算法）
+            particles.sort((a, b) => {
+                const posA = a.getRotatedPosition(rotationY, rotationX);
+                const posB = b.getRotatedPosition(rotationY, rotationX);
+                return posB.z - posA.z;
+            });
+
+            // 绘制粒子
+            particles.forEach(particle => {
+                particle.update();
+                particle.draw(ctx, centerX, centerY);
+            });
+
+            // 添加整体发光效果
+            ctx.globalCompositeOperation = 'screen';
+            const gradient = ctx.createRadialGradient(
+                centerX, centerY, 0,
+                centerX, centerY, 300
+            );
+            gradient.addColorStop(0, 'rgba(147, 112, 219, 0.1)');
+            gradient.addColorStop(0.5, 'rgba(138, 43, 226, 0.05)');
+            gradient.addColorStop(1, 'transparent');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, width, height);
+            ctx.globalCompositeOperation = 'source-over';
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+
+        // 触摸交互 - 加速旋转
+        let touchStartX = 0;
+        canvas.addEventListener('touchstart', (e) => {
+            touchStartX = e.touches[0].clientX;
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touchX = e.touches[0].clientX;
+            const deltaX = touchX - touchStartX;
+            rotationY += deltaX * 0.005;
+            touchStartX = touchX;
+        });
+
+        // 鼠标交互
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left - width / 2) / width;
+            rotationY += x * 0.02;
+        });
+
+        // 防止微信下拉回弹
+        document.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+        }, { passive: false });
+    </script>
+</body>
+</html>
